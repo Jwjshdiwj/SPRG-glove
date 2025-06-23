@@ -1,0 +1,179 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+------------------------------------------------------------------
+-- Teleport to Location
+------------------------------------------------------------------
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local targetPosition = Vector3.new(-1.3326430320739746, -5.067290782928467, 205.78707885742188)
+rootPart.CFrame = CFrame.new(targetPosition)
+
+------------------------------------------------------------------
+-- Attach Green Glowing Halo to Head
+------------------------------------------------------------------
+local head = character:WaitForChild("Head")
+local haloAssetId = "rbxassetid://89513784909062"
+local halo = game:GetObjects(haloAssetId)[1]
+
+if halo then
+	local haloPart = halo:IsA("BasePart") and halo or halo:FindFirstChildWhichIsA("BasePart")
+	if haloPart then
+		halo.Name = "HaloAttachment"
+		halo.Parent = character
+		haloPart.Anchored = false
+		haloPart.CanCollide = false
+		haloPart.Material = Enum.Material.Neon
+		haloPart.Color = Color3.fromRGB(0, 255, 0)
+		haloPart.CFrame = head.CFrame * CFrame.new(0, 1.5, 0)
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = head
+		weld.Part1 = haloPart
+		weld.Parent = haloPart
+
+		local light = Instance.new("PointLight")
+		light.Brightness = 5
+		light.Range = 10
+		light.Color = haloPart.Color
+		light.Parent = haloPart
+	else
+		warn("No usable part found in halo.")
+	end
+else
+	warn("Failed to load halo asset.")
+end
+
+------------------------------------------------------------------
+-- Play Looped Music at Volume 2
+------------------------------------------------------------------
+local sound = Instance.new("Sound")
+sound.SoundId = "rbxassetid://138124847008908"
+sound.Volume = 2
+sound.Looped = true
+sound.Parent = workspace
+sound:Play()
+
+------------------------------------------------------------------
+-- Add "SENTINEL" Text Above Head (with floating animation)
+------------------------------------------------------------------
+local billboardGui = Instance.new("BillboardGui")
+billboardGui.Name = "SentinelTag"
+billboardGui.Adornee = head
+billboardGui.Size = UDim2.new(0, 200, 0, 50)
+billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+billboardGui.AlwaysOnTop = true
+billboardGui.Parent = head
+
+local textLabel = Instance.new("TextLabel")
+textLabel.Size = UDim2.new(1, 0, 1, 0)
+textLabel.BackgroundTransparency = 1
+textLabel.Text = "SENTINEL"
+textLabel.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green color
+textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+textLabel.TextStrokeTransparency = 0.5
+textLabel.TextScaled = true
+textLabel.Font = Enum.Font.SourceSansBold
+textLabel.Parent = billboardGui
+
+-- Floating animation variables
+local amplitude = 0.25  -- How far it moves up/down
+local speed = 2         -- Speed of floating
+local startTime = tick()
+
+local connection
+
+local function animate()
+	local elapsed = tick() - startTime
+	local offsetY = 3 + amplitude * math.sin(elapsed * speed)
+	if billboardGui and billboardGui.Parent then
+		billboardGui.StudsOffset = Vector3.new(0, offsetY, 0)
+	else
+		if connection then
+			connection:Disconnect()
+			connection = nil
+		end
+	end
+end
+
+connection = RunService.RenderStepped:Connect(animate)
+
+------------------------------------------------------------------
+-- Add Green Highlight Around Character
+------------------------------------------------------------------
+local highlight = Instance.new("Highlight")
+highlight.Name = "SentinelHighlight"
+highlight.Adornee = character
+highlight.FillColor = Color3.fromRGB(0, 255, 0)
+highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+highlight.Parent = character
+
+------------------------------------------------------------------
+-- Stop music, remove text & highlight when character dies
+------------------------------------------------------------------
+local function onDeath()
+	if sound then
+		sound:Stop()
+	end
+	if billboardGui then
+		billboardGui:Destroy()
+	end
+	if highlight then
+		highlight:Destroy()
+	end
+	if connection then
+		connection:Disconnect()
+		connection = nil
+	end
+end
+
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+if humanoid then
+	humanoid.Died:Connect(onDeath)
+end
+
+------------------------------------------------------------------
+-- Animation Setup
+------------------------------------------------------------------
+-- Ensure Animator exists
+local animator = humanoid:FindFirstChildOfClass("Animator")
+if not animator then
+    animator = Instance.new("Animator")
+    animator.Parent = humanoid
+end
+
+-- Idle Animation
+local idleAnimation = Instance.new("Animation")
+idleAnimation.AnimationId = "rbxassetid://18470658556"
+
+local idleTrack = animator:LoadAnimation(idleAnimation)
+idleTrack.Looped = true
+
+-- Walk Animation (Replace Default Walk)
+local animateScript = character:FindFirstChild("Animate")
+if animateScript and animateScript:FindFirstChild("walk") and animateScript.walk:FindFirstChild("WalkAnim") then
+    animateScript.walk.WalkAnim.AnimationId = "rbxassetid://13548464604"
+end
+
+-- Function to manage animations
+local function onMove(speed)
+    if speed > 0 then
+        -- Stop idle animation when walking
+        if idleTrack.IsPlaying then
+            idleTrack:Stop()
+        end
+    else
+        -- Play idle animation when standing still
+        if not idleTrack.IsPlaying then
+            idleTrack:Play()
+        end
+    end
+end
+
+-- Connect function to movement changes
+humanoid.Running:Connect(onMove)
+
+-- Start idle animation initially
+idleTrack:Play()
